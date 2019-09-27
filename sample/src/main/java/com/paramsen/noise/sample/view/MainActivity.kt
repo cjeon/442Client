@@ -25,14 +25,14 @@ import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
-    val TAG = javaClass.simpleName!!
+    private val TAG = javaClass.simpleName!!
 
-    val disposable: CompositeDisposable = CompositeDisposable()
+    private val disposable: CompositeDisposable = CompositeDisposable()
 
-    val p0 = Profiler("p0")
-    val p1 = Profiler("p1")
+    private val p0 = Profiler("p0")
+    private val p1 = Profiler("p1")
     val p2 = Profiler("p2")
-    val p3 = Profiler("p3")
+    private val p3 = Profiler("p3")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,18 +62,19 @@ class MainActivity : AppCompatActivity() {
 
         //AudioView
         disposable.add(src.observeOn(Schedulers.newThread())
-                .doOnNext({ p0.next() })
-                .subscribe(audioView::onWindow, { e -> Log.e(TAG, e.message) }))
+//                .doOnNext { p0.next() }
+                .subscribe(audioView::onWindow) { e -> Log.e(TAG, e.message) })
         //FFTView
         disposable.add(src.observeOn(Schedulers.newThread())
-                .doOnNext({ p1.next() })
+//                .doOnNext { p1.next() }
                 .map {
-                    for (i in 0..it.size - 1)
+                    for (i in 0 until it.size) {
                         it[i] *= 2.0f
+                    }
                     return@map it
                 }
                 .map { noise.fft(it, FloatArray(4096 + 2)) }
-                .doOnNext({ p3.next() })
+//                .doOnNext { p3.next() }
                 .subscribe({ fft ->
                     fftHeatMapView.onFFT(fft)
                     fftBandView.onFFT(fft)
@@ -123,7 +124,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun accumulate1(o: Flowable<FloatArray>): Flowable<FloatArray> {
-        return o.window(6).flatMapSingle { it.collect({ ArrayList<FloatArray>() }, { a, b -> a.add(b) }) }.map({ window ->
+        return o.window(6).flatMapSingle { it.collect({ ArrayList<FloatArray>() }, { a, b -> a.add(b) }) }.map { window ->
             val out = FloatArray(4096)
             var c = 0
             for (each in window) {
@@ -134,7 +135,7 @@ class MainActivity : AppCompatActivity() {
                 c += each.size - 1
             }
             out
-        })
+        }
     }
 
     private fun requestAudio(): Boolean {

@@ -11,17 +11,17 @@ import java.lang.System.arraycopy
  * @author Pär Amsen 06/2017
  */
 class FFTBandView(context: Context, attrs: AttributeSet?) : SimpleSurface(context, attrs), FFTView {
-    val size = 4096
-    val bands = 64
-    val bandSize = size / bands
-    val maxConst = 1750000000 //reference max value for accum magnitude
-    var average = .0f
+    private val size = 4096
+    private val bands = 64
+    private val bandSize = size / bands
+    private val maxConst = 1750000000 //reference max value for accum magnitude
+    private var average = .0f
 
-    val fft: FloatArray = FloatArray(4096)
-    val paintBandsFill: Paint = Paint()
-    val paintBands: Paint = Paint()
-    val paintAvg: Paint = Paint()
-    val paintText: Paint = textPaint()
+    private val fft: FloatArray = FloatArray(4096)
+    private val paintBandsFill: Paint = Paint()
+    private val paintBands: Paint = Paint()
+    private val paintAvg: Paint = Paint()
+    private val paintText: Paint = textPaint()
 
     init {
         paintBandsFill.color = Color.parseColor("#33FF2C00")
@@ -36,13 +36,13 @@ class FFTBandView(context: Context, attrs: AttributeSet?) : SimpleSurface(contex
         paintAvg.style = Paint.Style.STROKE
     }
 
-    fun drawAudio(canvas: Canvas): Canvas {
+    private fun drawAudio(canvas: Canvas): Canvas {
         canvas.drawColor(Color.DKGRAY)
-        for (i in 0..bands - 1) {
+        for (i in 0 until bands) {
             var accum = .0f
 
             synchronized(fft) {
-                for (j in 0..bandSize - 1 step 2) {
+                for (j in 0 until bandSize step 2) {
                     //convert real and imag part to get energy
                     accum += (Math.pow(fft[j + (i * bandSize)].toDouble(), 2.0) + Math.pow(fft[j + 1 + (i * bandSize)].toDouble(), 2.0)).toFloat()
                 }
@@ -52,13 +52,28 @@ class FFTBandView(context: Context, attrs: AttributeSet?) : SimpleSurface(contex
 
             average += accum
 
-            canvas.drawRect(width * (i / bands.toFloat()), height - (height * Math.min(accum / maxConst.toDouble(), 1.0).toFloat()) - height * .02f, width * (i / bands.toFloat()) + width / bands.toFloat(), height.toFloat(), paintBandsFill)
-            canvas.drawRect(width * (i / bands.toFloat()), height - (height * Math.min(accum / maxConst.toDouble(), 1.0).toFloat()) - height * .02f, width * (i / bands.toFloat()) + width / bands.toFloat(), height.toFloat(), paintBands)
+            canvas.drawRect(
+                    width * (i / bands.toFloat()),
+                    height - (height * Math.min(accum / maxConst.toDouble(), 1.0).toFloat()) - height * .02f,
+                    width * (i / bands.toFloat()) + width / bands.toFloat(),
+                    height.toFloat(),
+                    paintBandsFill)
+            canvas.drawRect(
+                    width * (i / bands.toFloat()),
+                    height - (height * Math.min(accum / maxConst.toDouble(), 1.0).toFloat()) - height * .02f,
+                    width * (i / bands.toFloat()) + width / bands.toFloat(),
+                    height.toFloat(),
+                    paintBands)
         }
 
         average /= bands
 
-        canvas.drawLine(0f, height - (height * (average / maxConst)) - height * .02f, width.toFloat(), height - (height * (average / maxConst)) - height * .02f, paintAvg)
+        canvas.drawLine(
+                0f,
+                height - (height * (average / maxConst)) - height * .02f,
+                width.toFloat(),
+                height - (height * (average / maxConst)) - height * .02f,
+                paintAvg)
         canvas.drawText("FFT BANDS", 16f.px, 24f.px, paintText)
 
         return canvas

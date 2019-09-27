@@ -2,8 +2,8 @@ package com.paramsen.noise.sample.view
 
 import android.util.Log
 
-class Profiler(val tag: String) {
-    val TAG = javaClass.simpleName!!
+class Profiler(private val tag: String) {
+    private val TAG = javaClass.simpleName!!
 
     private var count = 0L
     private var time = 0L
@@ -25,7 +25,7 @@ class Profiler(val tag: String) {
     fun next(hash: Int) {
         if (time == 0L) time = System.currentTimeMillis()
 
-        hashes.put(hash, hashes.getOrDefault(hash, 0).inc())
+        hashes[hash] = hashes.getOrDefault(hash, 0).inc()
 
         if (System.currentTimeMillis() - time > 1000L) {
             time = System.currentTimeMillis()
