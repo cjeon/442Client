@@ -44,7 +44,8 @@ class FFTBandView(context: Context, attrs: AttributeSet?) : SimpleSurface(contex
             synchronized(fft) {
                 for (j in 0 until bandSize step 2) {
                     //convert real and imag part to get energy
-                    accum += (Math.pow(fft[j + (i * bandSize)].toDouble(), 2.0) + Math.pow(fft[j + 1 + (i * bandSize)].toDouble(), 2.0)).toFloat()
+                    accum += (Math.pow(fft[j + (i * bandSize)].toDouble(), 2.0)
+                            + Math.pow(fft[j + (i * bandSize)].toDouble() + 1, 2.0)).toFloat()
                 }
 
                 accum /= bandSize / 2

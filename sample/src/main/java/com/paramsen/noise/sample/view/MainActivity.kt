@@ -23,6 +23,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.Function
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
+import net.mabboud.android_tone_player.ContinuousBuzzer
 
 class MainActivity : AppCompatActivity() {
     private val TAG = javaClass.simpleName!!
@@ -33,19 +34,25 @@ class MainActivity : AppCompatActivity() {
     private val p1 = Profiler("p1")
     val p2 = Profiler("p2")
     private val p3 = Profiler("p3")
+    private var tonePlayer: ContinuousBuzzer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         scheduleAbout()
+        tonePlayer = ContinuousBuzzer()
     }
 
     override fun onResume() {
         super.onResume()
 
-        if (requestAudio() && disposable.size() == 0)
+        if (requestAudio() && disposable.size() == 0) {
             start()
+        }
+        tonePlayer?.toneFreqInHz = 18000.0
+        tonePlayer?.pauseTimeInMs = 0
+        tonePlayer?.play()
     }
 
     override fun onStop() {
@@ -80,7 +87,7 @@ class MainActivity : AppCompatActivity() {
                     fftBandView.onFFT(fft)
                 }, { e -> Log.e(TAG, e.message) }))
 
-        tip.schedule()
+//        tip.schedule()
     }
 
     /**
@@ -88,6 +95,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun stop() {
         disposable.clear()
+        tonePlayer?.stop()
     }
 
     /**
@@ -160,8 +168,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem?): Boolean {
-        info.onShow()
-
+//        info.onShow()
+        tonePlayer?.play()
         return true
     }
 
