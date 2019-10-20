@@ -118,7 +118,7 @@ class FFTSpectogramView(context: Context, attrs: AttributeSet?) : SimpleSurface(
             drawMsg(canvas)
         })
 
-        println("===p4: ${drawTimes.last}")
+//        println("===p4: ${drawTimes.last}")
 
         while (drawTimes.size > history) drawTimes.removeFirst()
 
@@ -131,11 +131,14 @@ class FFTSpectogramView(context: Context, attrs: AttributeSet?) : SimpleSurface(
             var accum: Float
             var avg = 0f
 
-            for (i in 0..resolution - 1) {
+            for (i in 0 until resolution) {
                 accum = .0f
 
-                for (j in 0..fft.size / resolution - 1 step 2) {
-                    accum += (Math.sqrt(Math.pow(fft[i * j].toDouble(), 2.0) + Math.pow(fft[i * j + 1].toDouble(), 2.0))).toFloat() //magnitudes
+                for (j in 0 until fft.size / resolution step 2) {
+                    accum += (Math.sqrt(
+                            Math.pow(fft[i * j].toDouble(), 2.0)
+                                    + Math.pow(fft[i * j + 1].toDouble(), 2.0))
+                            ).toFloat() //magnitudes
                 }
 
                 accum /= resolution
@@ -145,7 +148,7 @@ class FFTSpectogramView(context: Context, attrs: AttributeSet?) : SimpleSurface(
 
             avg /= resolution
 
-            for (i in 0..resolution - 1) {
+            for (i in 0 until resolution) {
                 if (bands[i] < avg / 2) bands[i] * 1000f
             }
 

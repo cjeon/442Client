@@ -2,8 +2,8 @@ package com.paramsen.noise.sample.view
 
 import android.Manifest.permission.RECORD_AUDIO
 import android.content.pm.PackageManager.PERMISSION_GRANTED
-import android.os.Build
-import android.os.Bundle
+import android.os.*
+import android.support.annotation.AnyThread
 import android.support.v4.content.ContextCompat.checkSelfPermission
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.view.menu.ActionMenuItemView
@@ -15,7 +15,9 @@ import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
+import android.widget.Toast
 import com.paramsen.noise.Noise
+import com.paramsen.noise.sample.FileManager
 import com.paramsen.noise.sample.R
 import com.paramsen.noise.sample.source.AudioSource
 import io.reactivex.Flowable
@@ -24,6 +26,12 @@ import io.reactivex.functions.Function
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import net.mabboud.android_tone_player.ContinuousBuzzer
+import java.io.File
+import java.lang.RuntimeException
+import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.collections.ArrayList
 
 class MainActivity : AppCompatActivity() {
     private val TAG = javaClass.simpleName!!
@@ -36,23 +44,82 @@ class MainActivity : AppCompatActivity() {
     private val p3 = Profiler("p3")
     private var tonePlayer: ContinuousBuzzer? = null
 
+    // set to positive number when taking sample,
+    // and decremented by 1 each time sample is added to fftSamples.
+    private val sampleCount = 30
+    private var currentSampleCount = AtomicInteger(0)
+    private val recordType = AtomicReference<RecordType>(RecordType.EMPTY)
+
+    private val fileManager = FileManager(this)
+
+    enum class RecordType(val filename: String) { NOISE("noise"), SIGNAL("signal"), EMPTY("empty") }
+
+    @AnyThread
+    fun showToast(msg: String) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        } else {
+            Handler(Looper.getMainLooper()).post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         scheduleAbout()
         tonePlayer = ContinuousBuzzer()
+        tonePlayer?.toneFreqInHz = 10000.0
+        tonePlayer?.pausePeriodSeconds = 5.0
+
+        record_noise.setOnClickListener {
+            if (currentSampleCount.get() > 0) {
+                showToast("Sample already taking .. ${currentSampleCount.get()}")
+                return@setOnClickListener
+            }
+            if (recordType.get() != RecordType.EMPTY) {
+                showToast("Record type is not empty .. ${recordType.get()}")
+                return@setOnClickListener
+            }
+            recordType.set(RecordType.NOISE)
+            currentSampleCount.set(sampleCount)
+            showToast("Start sampling noise!")
+        }
+
+        record_signal.setOnClickListener {
+            if (currentSampleCount.get() > 0) {
+                showToast("Sample already taking .. ${currentSampleCount.get()}")
+                return@setOnClickListener
+            }
+            if (recordType.get() != RecordType.EMPTY) {
+                showToast("Record type is not empty .. ${recordType.get()}")
+                return@setOnClickListener
+            }
+            recordType.set(RecordType.SIGNAL)
+
+            tonePlayer?.play()
+            // wait for sound to play
+            AsyncTask.execute {
+                Thread.sleep(1000)
+                currentSampleCount.set(sampleCount)
+            }
+            showToast("Start sampling signal!")
+        }
+
+        share_noise.setOnClickListener {
+            fileManager.shareFile(RecordType.NOISE)
+        }
+
+        share_signal.setOnClickListener {
+            fileManager.shareFile(RecordType.SIGNAL)
+        }
     }
 
     override fun onResume() {
         super.onResume()
-
         if (requestAudio() && disposable.size() == 0) {
             start()
         }
-        tonePlayer?.toneFreqInHz = 18000.0
-        tonePlayer?.pauseTimeInMs = 0
-        tonePlayer?.play()
     }
 
     override fun onStop() {
@@ -80,11 +147,21 @@ class MainActivity : AppCompatActivity() {
                     }
                     return@map it
                 }
+                .onBackpressureDrop()
                 .map { noise.fft(it, FloatArray(4096 + 2)) }
+                .doOnNext { Log.d("MainActivity", it[1024].toString()) }
 //                .doOnNext { p3.next() }
                 .subscribe({ fft ->
                     fftHeatMapView.onFFT(fft)
                     fftBandView.onFFT(fft)
+                    if (currentSampleCount.get() > 0) {
+                        currentSampleCount.set(currentSampleCount.get() - 1)
+                        fileManager.writeDataToFile(recordType.get(), fft)
+                        if (currentSampleCount.get() == 0) {
+                            runOnUiThread { Toast.makeText(this, "sampling finished", Toast.LENGTH_SHORT).show() }
+                            recordType.set(RecordType.EMPTY)
+                        }
+                    }
                 }, { e -> Log.e(TAG, e.message) }))
 
 //        tip.schedule()
@@ -96,6 +173,7 @@ class MainActivity : AppCompatActivity() {
     private fun stop() {
         disposable.clear()
         tonePlayer?.stop()
+        fileManager.close()
     }
 
     /**

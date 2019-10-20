@@ -3,6 +3,7 @@
     package="com.paramsen.noise.sample">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
     <application
         android:icon="@mipmap/icon_square"

@@ -7,6 +7,41 @@
     android:layout_height="match_parent"
     tools:context="com.paramsen.noise.sample.view.MainActivity">
 
+    <LinearLayout
+        app:layout_constraintTop_toTopOf="parent"
+        android:id="@+id/buttons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/record_noise"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="record noise"/>
+
+        <TextView
+            android:id="@+id/record_signal"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="record signal"/>
+
+        <TextView
+            android:id="@+id/share_noise"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="share noise"/>
+
+        <TextView
+            android:id="@+id/share_signal"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="share signal"/>
+    </LinearLayout>
+
     <com.paramsen.noise.sample.view.AudioView
         android:id="@+id/audioView"
         android:layout_width="0dp"
@@ -14,7 +49,7 @@
         app:layout_constraintBottom_toTopOf="@+id/fftHeatMapView"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/buttons" />
 
     <com.paramsen.noise.sample.view.FFTSpectogramView
         android:id="@+id/fftHeatMapView"
@@ -53,5 +88,5 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="visible" />
+        tools:visibility="gone" />
 </android.support.constraint.ConstraintLayout>
