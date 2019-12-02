@@ -2,6 +2,9 @@ package com.paramsen.noise.sample.view
 
 import android.Manifest.permission.RECORD_AUDIO
 import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
 import android.os.*
 import android.support.annotation.AnyThread
 import android.support.v4.content.ContextCompat.checkSelfPermission
@@ -63,6 +66,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -97,10 +101,13 @@ class MainActivity : AppCompatActivity() {
             }
             recordType.set(RecordType.SIGNAL)
 
-            tonePlayer?.play()
+            //tonePlayer?.play()
+            playsound(1500.0,44100)
+
             // wait for sound to play
             AsyncTask.execute {
                 Thread.sleep(1000)
+                //playsound(1500.0,4410)
                 currentSampleCount.set(sampleCount)
             }
             showToast("Start sampling signal!")
@@ -133,7 +140,6 @@ class MainActivity : AppCompatActivity() {
     private fun start() {
         val src = AudioSource().stream()
         val noise = Noise.real().optimized().init(4096, false)
-
         //AudioView
         disposable.add(src.observeOn(Schedulers.newThread())
 //                .doOnNext { p0.next() }
@@ -149,7 +155,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 .onBackpressureDrop()
                 .map { noise.fft(it, FloatArray(4096 + 2)) }
-                .doOnNext { Log.d("MainActivity", it[1024].toString()) }
+//                .doOnNext { Log.d("MainActivity", it[1024].toString()) }
 //                .doOnNext { p3.next() }
                 .subscribe({ fft ->
                     fftHeatMapView.onFFT(fft)
@@ -167,6 +173,31 @@ class MainActivity : AppCompatActivity() {
 //        tip.schedule()
     }
 
+    private fun playsound(frequency: Double, duration: Int){
+
+        // AudioTrack definition
+        val mBufferSize = AudioTrack.getMinBufferSize(44100,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_8BIT)
+        val mAudioTrack = AudioTrack(AudioManager.STREAM_MUSIC, 44100,
+                AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                mBufferSize, AudioTrack.MODE_STREAM)
+
+        var mSound = DoubleArray(4410)
+        var mBuffer = ShortArray(duration)
+        for(i in mSound.indices){
+            mSound[i] = Math.sin((2.0*Math.PI * i/(44100/frequency)))
+            mBuffer[i] = (mSound[i]*Short.MAX_VALUE).toShort()
+        }
+
+        mAudioTrack.setStereoVolume(AudioTrack.getMaxVolume(), AudioTrack.getMaxVolume())
+        mAudioTrack.play()
+
+        mAudioTrack.write(mBuffer, 0, 4410)
+        mAudioTrack.stop()
+        mAudioTrack.release()
+
+    }
     /**
      * Dispose microphone subscriptions
      */
@@ -238,6 +269,7 @@ class MainActivity : AppCompatActivity() {
 
         if (grantResults[0] == PERMISSION_GRANTED)
             start()
+            //playsound(10000.0,200)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
