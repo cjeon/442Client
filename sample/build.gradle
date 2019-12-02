@@ -6,14 +6,6 @@ def VERSION_NAME = '1.1'
 def VERSION_CODE = 4
 
 android {
-//    signingConfigs {
-//        debug {
-//            keyAlias 'qqqqqq'
-//            keyPassword 'qqqqqq'
-//            storeFile file('/Users/parnilsamsen/projects/personal/android/kissfft/sample/debug.jks')
-//            storePassword 'qqqqqq'
-//        }
-//    }
     compileSdkVersion 26
     buildToolsVersion '28.0.3'
     defaultConfig {

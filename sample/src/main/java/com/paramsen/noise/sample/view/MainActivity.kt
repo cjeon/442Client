@@ -1,12 +1,12 @@
 package com.paramsen.noise.sample.view
 
 import android.Manifest.permission.RECORD_AUDIO
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager.PERMISSION_GRANTED
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.os.*
 import android.support.annotation.AnyThread
+import android.support.annotation.MainThread
 import android.support.v4.content.ContextCompat.checkSelfPermission
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.view.menu.ActionMenuItemView
@@ -28,24 +28,14 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.Function
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
-import net.mabboud.android_tone_player.ContinuousBuzzer
-import java.io.File
-import java.lang.RuntimeException
-import java.util.*
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.collections.ArrayList
 
 class MainActivity : AppCompatActivity() {
     private val TAG = javaClass.simpleName!!
 
     private val disposable: CompositeDisposable = CompositeDisposable()
-
-    private val p0 = Profiler("p0")
-    private val p1 = Profiler("p1")
-    val p2 = Profiler("p2")
-    private val p3 = Profiler("p3")
-    private var tonePlayer: ContinuousBuzzer? = null
 
     // set to positive number when taking sample,
     // and decremented by 1 each time sample is added to fftSamples.
@@ -57,24 +47,26 @@ class MainActivity : AppCompatActivity() {
 
     enum class RecordType(val filename: String) { NOISE("noise"), SIGNAL("signal"), EMPTY("empty") }
 
+    @SuppressLint("WrongThread")
     @AnyThread
     fun showToast(msg: String) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            msg_view.text = msg
         } else {
-            Handler(Looper.getMainLooper()).post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                msg_view.text = msg
+            }
         }
     }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        fileManager.msgView = msg_view
 
         scheduleAbout()
-        tonePlayer = ContinuousBuzzer()
-        tonePlayer?.toneFreqInHz = 10000.0
-        tonePlayer?.pausePeriodSeconds = 5.0
 
         record_noise.setOnClickListener {
             if (currentSampleCount.get() > 0) {
@@ -99,18 +91,8 @@ class MainActivity : AppCompatActivity() {
                 showToast("Record type is not empty .. ${recordType.get()}")
                 return@setOnClickListener
             }
-            recordType.set(RecordType.SIGNAL)
 
-            //tonePlayer?.play()
-            playsound(1500.0,44100)
-
-            // wait for sound to play
-            AsyncTask.execute {
-                Thread.sleep(1000)
-                //playsound(1500.0,4410)
-                currentSampleCount.set(sampleCount)
-            }
-            showToast("Start sampling signal!")
+            recordSignal(10)
         }
 
         share_noise.setOnClickListener {
@@ -122,11 +104,57 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * @param count times to repeat
+     */
+    @MainThread
+    fun recordSignal(count: Int) {
+        if (count <= 0) {
+            return
+        }
+
+        recordType.set(RecordType.SIGNAL)
+
+        playFMCW(count)
+
+        // wait for sound to play
+        AsyncTask.execute {
+            Thread.sleep(1000)
+            currentSampleCount.set(sampleCount)
+        }
+        showToast("Start sampling signal! Count: $count")
+    }
+
+    private var player = MediaPlayer()
+
+    @MainThread
+    fun playFMCW(count: Int) {
+        player.setOnCompletionListener {
+            recordSignal(count - 1)
+        }
+        try {
+            player.start()
+        } catch (e: IOException) {
+            Log.e(e.localizedMessage, e.toString())
+        }
+
+    }
+
     override fun onResume() {
         super.onResume()
         if (requestAudio() && disposable.size() == 0) {
             start()
         }
+        setupFmcwPlayer()
+    }
+
+    fun setupFmcwPlayer() {
+        player = MediaPlayer()
+        val afd = resources.openRawResourceFd(R.raw.fmcw) // 500-2000
+        val fd = afd.fileDescriptor
+        player.setDataSource(fd, afd.startOffset, afd.length)
+        player.isLooping = false
+        player.prepare()
     }
 
     override fun onStop() {
@@ -158,13 +186,14 @@ class MainActivity : AppCompatActivity() {
 //                .doOnNext { Log.d("MainActivity", it[1024].toString()) }
 //                .doOnNext { p3.next() }
                 .subscribe({ fft ->
-                    fftHeatMapView.onFFT(fft)
-                    fftBandView.onFFT(fft)
+//                    fftHeatMapView.onFFT(fft)
+//                    fftBandView.onFFT(fft)
                     if (currentSampleCount.get() > 0) {
                         currentSampleCount.set(currentSampleCount.get() - 1)
                         fileManager.writeDataToFile(recordType.get(), fft)
                         if (currentSampleCount.get() == 0) {
-                            runOnUiThread { Toast.makeText(this, "sampling finished", Toast.LENGTH_SHORT).show() }
+                            showToast("sampling finished")
+                            fileManager.writeLineBreak(recordType.get())
                             recordType.set(RecordType.EMPTY)
                         }
                     }
@@ -173,38 +202,14 @@ class MainActivity : AppCompatActivity() {
 //        tip.schedule()
     }
 
-    private fun playsound(frequency: Double, duration: Int){
-
-        // AudioTrack definition
-        val mBufferSize = AudioTrack.getMinBufferSize(44100,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_8BIT)
-        val mAudioTrack = AudioTrack(AudioManager.STREAM_MUSIC, 44100,
-                AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                mBufferSize, AudioTrack.MODE_STREAM)
-
-        var mSound = DoubleArray(4410)
-        var mBuffer = ShortArray(duration)
-        for(i in mSound.indices){
-            mSound[i] = Math.sin((2.0*Math.PI * i/(44100/frequency)))
-            mBuffer[i] = (mSound[i]*Short.MAX_VALUE).toShort()
-        }
-
-        mAudioTrack.setStereoVolume(AudioTrack.getMaxVolume(), AudioTrack.getMaxVolume())
-        mAudioTrack.play()
-
-        mAudioTrack.write(mBuffer, 0, 4410)
-        mAudioTrack.stop()
-        mAudioTrack.release()
-
-    }
     /**
      * Dispose microphone subscriptions
      */
     private fun stop() {
         disposable.clear()
-        tonePlayer?.stop()
         fileManager.close()
+        player.stop()
+        player.release()
     }
 
     /**
@@ -240,21 +245,6 @@ class MainActivity : AppCompatActivity() {
         }).filter { fft -> fft.size == size } //filter only the emissions of complete 4096 windows
     }
 
-    private fun accumulate1(o: Flowable<FloatArray>): Flowable<FloatArray> {
-        return o.window(6).flatMapSingle { it.collect({ ArrayList<FloatArray>() }, { a, b -> a.add(b) }) }.map { window ->
-            val out = FloatArray(4096)
-            var c = 0
-            for (each in window) {
-                if (c + each.size >= 4096)
-                    break
-
-                System.arraycopy(each, 0, out, c, each.size)
-                c += each.size - 1
-            }
-            out
-        }
-    }
-
     private fun requestAudio(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(this, RECORD_AUDIO) != PERMISSION_GRANTED) {
             requestPermissions(arrayOf(RECORD_AUDIO), 1337)
@@ -279,7 +269,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem?): Boolean {
 //        info.onShow()
-        tonePlayer?.play()
         return true
     }
 

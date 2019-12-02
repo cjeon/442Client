@@ -41,6 +41,21 @@
             android:layout_weight="1"
             android:text="share signal"/>
     </LinearLayout>
+    
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/msg_wrapper"
+        android:orientation="vertical"
+        app:layout_constraintTop_toBottomOf="@id/buttons"
+        app:layout_constraintBottom_toTopOf="@id/audioView">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/msg_view"
+            android:gravity="center"
+            tools:text="msg"/>
+    </LinearLayout>
 
     <com.paramsen.noise.sample.view.AudioView
         android:id="@+id/audioView"
@@ -49,7 +64,7 @@
         app:layout_constraintBottom_toTopOf="@+id/fftHeatMapView"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/buttons" />
+        app:layout_constraintTop_toBottomOf="@id/msg_wrapper" />
 
     <com.paramsen.noise.sample.view.FFTSpectogramView
         android:id="@+id/fftHeatMapView"
