@@ -104,8 +104,7 @@ class FileManager(private val context: Context) {
 
     fun close() {
         disposable.dispose()
-        getTextFile(RecordType.SIGNAL).delete()
-        getTextFile(RecordType.NOISE).delete()
+        RecordType.values().map { getTextFile(it) }.forEach { it.delete() }
     }
 }
 
