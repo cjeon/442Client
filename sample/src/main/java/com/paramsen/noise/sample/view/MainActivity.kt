@@ -181,7 +181,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     return@map it
                 }
-                .onBackpressureDrop()
+                .onBackpressureBuffer()
                 .map { noise.fft(it, FloatArray(4096 + 2)) }
 //                .doOnNext { Log.d("MainActivity", it[1024].toString()) }
 //                .doOnNext { p3.next() }

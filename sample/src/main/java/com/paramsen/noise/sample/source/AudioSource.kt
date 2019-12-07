@@ -3,6 +3,7 @@ package com.paramsen.noise.sample.source
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Flowable
 import io.reactivex.schedulers.Schedulers
@@ -48,18 +49,21 @@ class AudioSource() {
             val buf = ShortArray(512)
             val out = FloatBuffer.allocate(SAMPLE_SIZE)
             var read = 0
+            val start = System.currentTimeMillis()
+            var count = 0
 
             while (!sub.isCancelled) {
                 read += recorder.read(buf, read, buf.size - read)
 
                 if (read == buf.size) {
-                    for (i in 0..buf.size - 1) {
+                    for (i in 0 until buf.size) {
                         out.put(buf[i].toFloat())
                     }
 
                     if (!out.hasRemaining()) {
                         val cpy = FloatArray(out.array().size)
                         System.arraycopy(out.array(), 0, cpy, 0, out.array().size)
+                        Log.d("onnext", "Time passed: ${System.currentTimeMillis() - start}, data logged: ${++count}")
                         sub.onNext(cpy)
                         out.clear()
                     }
@@ -69,7 +73,7 @@ class AudioSource() {
             }
 
             sub.onComplete()
-        }, BackpressureStrategy.DROP)
+        }, BackpressureStrategy.BUFFER)
                 .subscribeOn(Schedulers.io())
                 .share()
     }
