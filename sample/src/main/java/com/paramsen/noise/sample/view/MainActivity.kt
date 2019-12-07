@@ -171,11 +171,9 @@ class MainActivity : AppCompatActivity() {
         val noise = Noise.real().optimized().init(4096, false)
         //AudioView
         disposable.add(src.observeOn(Schedulers.newThread())
-//                .doOnNext { p0.next() }
                 .subscribe(audioView::onWindow) { e -> Log.e(TAG, e.message) })
         //FFTView
         disposable.add(src.observeOn(Schedulers.newThread())
-//                .doOnNext { p1.next() }
                 .map {
                     for (i in 0 until it.size) {
                         it[i] *= 2.0f
@@ -184,8 +182,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 .onBackpressureBuffer()
                 .map { noise.fft(it, FloatArray(4096 + 2)) }
-//                .doOnNext { Log.d("MainActivity", it[1024].toString()) }
-//                .doOnNext { p3.next() }
                 .subscribe({ fft ->
 //                    fftHeatMapView.onFFT(fft)
 //                    fftBandView.onFFT(fft)
@@ -200,7 +196,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }, { e -> Log.e(TAG, e.message) }))
 
-//        tip.schedule()
     }
 
     /**
@@ -211,39 +206,6 @@ class MainActivity : AppCompatActivity() {
         fileManager.close()
         player.stop()
         player.release()
-    }
-
-    /**
-     * Output windows of 4096 len, ~10/sec for 44.1khz, accumulates for FFT
-     */
-    private fun accumulate(o: Flowable<FloatArray>): Flowable<FloatArray> {
-        val size = 4096
-
-        return o.map(object : Function<FloatArray, FloatArray> {
-            val buf = FloatArray(size * 2)
-            val empty = FloatArray(0)
-            var c = 0
-
-            override fun apply(window: FloatArray): FloatArray {
-                System.arraycopy(window, 0, buf, c, window.size)
-                c += window.size
-
-                if (c >= size) {
-                    val out = FloatArray(size)
-                    System.arraycopy(buf, 0, out, 0, size)
-
-                    if (c > size) {
-                        System.arraycopy(buf, c % size, buf, 0, c % size)
-                    }
-
-                    c = 0
-
-                    return out
-                }
-
-                return empty
-            }
-        }).filter { fft -> fft.size == size } //filter only the emissions of complete 4096 windows
     }
 
     private fun requestAudio(): Boolean {
@@ -260,7 +222,7 @@ class MainActivity : AppCompatActivity() {
 
         if (grantResults[0] == PERMISSION_GRANTED)
             start()
-            //playsound(10000.0,200)
+        //playsound(10000.0,200)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -272,29 +234,4 @@ class MainActivity : AppCompatActivity() {
 //        info.onShow()
         return true
     }
-
-    private fun scheduleAbout() {
-        container.postDelayed({
-            if (!info.showed) {
-                try {
-                    val anim = AnimationUtils.loadAnimation(this, R.anim.nudge).apply {
-                        repeatCount = 3
-                        repeatMode = Animation.REVERSE
-                        duration = 200
-                        interpolator = AccelerateDecelerateInterpolator()
-                        onTerminate { scheduleAbout() }
-                    }
-
-                    (((((container.parent.parent as ViewGroup).getChildAt(1) as ViewGroup) //container
-                            .getChildAt(0) as ViewGroup) //actionbar
-                            .getChildAt(1) as ActionMenuView)
-                            .getChildAt(0) as ActionMenuItemView)
-                            .startAnimation(anim)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Could not animate nudge / ${Log.getStackTraceString(e)}")
-                }
-            }
-        }, 3000)
-    }
-
 }
