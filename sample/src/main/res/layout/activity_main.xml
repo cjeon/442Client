@@ -18,6 +18,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:gravity="center"
             android:text="녹음"/>
 
         <TextView
@@ -25,20 +26,15 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:text="내보내기(all)"/>
-
-        <TextView
-            android:id="@+id/share_signal_tail"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:text="내보내기(tail)"/>
+            android:gravity="center"
+            android:text="내보내기"/>
 
         <TextView
             android:id="@+id/config"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:gravity="center"
             android:text="설정"/>
     </LinearLayout>
     

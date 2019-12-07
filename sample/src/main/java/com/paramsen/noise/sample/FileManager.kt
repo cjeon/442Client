@@ -1,10 +1,10 @@
 package com.paramsen.noise.sample
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.StrictMode
 import android.support.annotation.AnyThread
-import android.support.annotation.MainThread
 import com.paramsen.noise.sample.view.MainActivity
 import com.paramsen.noise.sample.view.MainActivity.RecordType
 import io.reactivex.Single
@@ -23,6 +23,7 @@ import java.util.zip.ZipOutputStream
 class FileManager(private val mainActivity: MainActivity) {
     private val disposable = CompositeDisposable()
     private val processors = hashMapOf<String, BehaviorProcessor<FloatArray>>()
+    private val sharedPref = mainActivity.getSharedPreferences("default", Context.MODE_PRIVATE)
 
     init {
         val builder = StrictMode.VmPolicy.Builder()
@@ -30,7 +31,8 @@ class FileManager(private val mainActivity: MainActivity) {
     }
 
     fun deleteAllFiles() {
-        RecordType.values().map { getTextFile(it) }.forEach { it.delete() }
+        val rootDir = mainActivity.getExternalFilesDir(null)
+        rootDir.listFiles().forEach { it.deleteRecursively() }
     }
 
     fun writeDataToFile(recordType: RecordType, data: FloatArray) {
@@ -60,24 +62,24 @@ class FileManager(private val mainActivity: MainActivity) {
     @AnyThread
     private fun getTextFile(recordType: RecordType): File {
         val rootDir = mainActivity.getExternalFilesDir(null)
-        val file = File(rootDir, "${recordType.filename}.txt")
+        val file = File(rootDir, "${sharedPref.getString(MainActivity.ConfigOptions.FILE_NAME.optionString, "")}_${recordType.filename}.txt")
         file.createNewFile() // file created only when file does not exist.
         return file
     }
 
     @AnyThread
-    private fun getZipFile(recordType: RecordType): File {
+    private fun getZipFile(): File {
         val rootDir = mainActivity.getExternalFilesDir(null)
-        val file = File(rootDir, "${recordType.filename}.zip")
+        val file = File(rootDir, "archive.zip")
         file.createNewFile() // file created only when file does not exist.
         return file
     }
 
     @AnyThread
-    fun shareFile(recordType: RecordType) {
+    fun shareFile() {
         Single.create<File> {
-            zipFile(recordType)
-            it.onSuccess(getZipFile(recordType))
+            zipFile()
+            it.onSuccess(getZipFile())
         }
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -97,33 +99,41 @@ class FileManager(private val mainActivity: MainActivity) {
         disposable.dispose()
     }
 
-    private fun zipFile(recordType: RecordType) {
-        val buffer = ByteArray(1024)
-        val fileToWrite = getTextFile(recordType)
-        if (fileToWrite.length() == 0L) {
-            mainActivity.showToast("Zip 실패: ${recordType.filename}이 비어있습니다.")
-            return
-        }
+    private fun zipFile() {
+        mainActivity.showToast("압축시작!")
+        val rootDir = mainActivity.getExternalFilesDir(null)
+        val files = rootDir.listFiles()
 
-        val zipFile = getZipFile(recordType)
+        val buffer = ByteArray(1024)
+        val zipFile = getZipFile()
         val fileOut = FileOutputStream(zipFile)
         val zipOut = ZipOutputStream(fileOut)
         zipOut.setLevel(9)
 
-        val zipEntry = ZipEntry(fileToWrite.name)
-        zipOut.putNextEntry(zipEntry)
+        for (file in files) {
+            if (file.length() == 0L) {
+                mainActivity.showToast("Zip 실패: ${file.name}이 비어있습니다.")
+                continue
+            }
+            if (file == zipFile) {
+                continue
+            }
 
-        val fileIn= FileInputStream(fileToWrite)
+            val zipEntry = ZipEntry(file.name)
+            zipOut.putNextEntry(zipEntry)
 
-        var read = fileIn.read(buffer)
-        do {
-            zipOut.write(buffer, 0, read)
-            read = fileIn.read(buffer)
+            val fileIn= FileInputStream(file)
+
+            var read = fileIn.read(buffer)
+            do {
+                zipOut.write(buffer, 0, read)
+                read = fileIn.read(buffer)
+            }
+            while (read > 0)
+
+            fileIn.close()
+            zipOut.closeEntry()
         }
-        while (read > 0)
-
-        fileIn.close()
-        zipOut.closeEntry()
         zipOut.close()
     }
 }

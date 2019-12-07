@@ -52,9 +52,14 @@ class MainActivity : AppCompatActivity() {
         SIGNAL_LENGTH_IN_MS(5000, "Signal 길이(ms)"),
         SIGNAL_MODE_LENGTH_IN_MS(5000, "signal 녹음 길이(ms)"),
         TAIL_MODE_LENGTH_IN_MS(3000, "tail 녹음 길이(ms)"),
-        CLEAR_ALL_FILES(0, "텍스트 파일 전부 삭제");
+        CLEAR_ALL_FILES(0, "텍스트 파일 전부 삭제"),
+        FILE_NAME(0, "파일 이름");
 
         fun loadValueFromSharedPref(sharedPref: SharedPreferences) {
+            if (this == FILE_NAME || this == CLEAR_ALL_FILES) {
+                // do nothing
+                return
+            }
             this.value = sharedPref.getInt(this.optionString, this.value)
         }
     }
@@ -102,11 +107,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         share_signal_all.setOnClickListener {
-            fileManager.shareFile(RecordType.ALL)
-        }
-
-        share_signal_tail.setOnClickListener {
-            fileManager.shareFile(RecordType.TAIL)
+            fileManager.shareFile()
         }
 
         config.setOnClickListener {
@@ -134,8 +135,12 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val editText = EditText(this)
-                editText.inputType = InputType.TYPE_CLASS_NUMBER
-                editText.setText(option.value.toString())
+                if (option == ConfigOptions.FILE_NAME) {
+                    editText.setText(sharedPref.getString(ConfigOptions.FILE_NAME.optionString, "(설정값 없음)"))
+                } else {
+                    editText.inputType = InputType.TYPE_CLASS_NUMBER
+                    editText.setText(option.value.toString())
+                }
 
                 AlertDialog.Builder(this)
                         .setTitle(option.optionString)
@@ -145,6 +150,11 @@ class MainActivity : AppCompatActivity() {
                             if (editText.text.isBlank()) {
                                 showToast("Input is empty, nothing changed.")
                             } else {
+                                if (option == ConfigOptions.FILE_NAME) {
+                                    sharedPref.edit().putString(ConfigOptions.FILE_NAME.optionString, editText.text.toString()).apply()
+                                    return@setPositiveButton
+                                }
+
                                 option.value = editText.text.toString().toInt()
                                 sharedPref.edit().putInt(option.optionString, option.value).apply()
                                 if (option == ConfigOptions.SIGNAL_LENGTH_IN_MS) {
