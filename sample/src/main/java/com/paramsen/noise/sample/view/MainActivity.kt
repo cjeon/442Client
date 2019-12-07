@@ -179,6 +179,11 @@ class MainActivity : AppCompatActivity() {
         }
         tonePlayer.setOnStopListener {
             isSignalPlaying.set(false)
+            if (ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value <= 0) {
+                showToast("sampling finished")
+                recordSignal(count - 1)
+                return@setOnStopListener
+            }
             isInTailMode.set(true)
             Single.timer(ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
                     .subscribe { _ ->
