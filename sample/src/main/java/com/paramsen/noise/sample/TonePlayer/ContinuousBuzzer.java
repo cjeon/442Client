@@ -4,7 +4,7 @@ package com.paramsen.noise.sample.TonePlayer;
  * A buzzer that will continue playing until stop() is called.
  */
 public class ContinuousBuzzer extends TonePlayer{
-    protected double pausePeriodSeconds = 5;
+    protected double pausePeriodInMs = 5;
     protected int pauseTimeInMs = 1;
 
     /**
@@ -24,16 +24,16 @@ public class ContinuousBuzzer extends TonePlayer{
     /**
      * The time period between when a buzzer pause should occur in seconds.
      */
-    public double getPausePeriodSeconds() {
-        return pausePeriodSeconds;
+    public double getPausePeriodInMs() {
+        return pausePeriodInMs;
     }
 
     /**
      * The time period between when a buzzer pause should occur in seconds.
      * IE pause the buzzer every X/pausePeriod seconds.
      */
-    public void setPausePeriodSeconds(double pausePeriodSeconds) {
-        this.pausePeriodSeconds = pausePeriodSeconds;
+    public void setPausePeriodInMs(double pausePeriodInMs) {
+        this.pausePeriodInMs = pausePeriodInMs;
     }
 
     protected void asyncPlayTrack(final double toneFreqInHz) {
@@ -41,7 +41,7 @@ public class ContinuousBuzzer extends TonePlayer{
             while (isPlaying) {
                 // will pause every x seconds useful for determining when a certain amount
                 // of time has passed while whatever the buzzer is signaling is active
-                playTone(toneFreqInHz, pausePeriodSeconds);
+                playTone(toneFreqInHz, pausePeriodInMs);
                 try {
                     Thread.sleep(pauseTimeInMs);
                 } catch (InterruptedException e) {

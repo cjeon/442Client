@@ -79,11 +79,13 @@ public abstract class TonePlayer {
 
     /**
      * below from http://stackoverflow.com/questions/2413426/playing-an-arbitrary-tone-with-android
+     *
+     * modified by cjeon
      */
-    protected void playTone(double freqInHz, double seconds) {
-        int sampleRate = 8000;
+    protected void playTone(double freqInHz, double timeInMs) {
+        double sampleRate = 8000; // 8000 samples per sec - 8 samples  per ms.
 
-        double dnumSamples = seconds * sampleRate;
+        double dnumSamples = timeInMs * (sampleRate / 1000);
         dnumSamples = Math.ceil(dnumSamples);
         int numSamples = (int) dnumSamples;
         double sample[] = new double[numSamples];
@@ -134,7 +136,7 @@ public abstract class TonePlayer {
             soundData[idx++] = (byte) ((val & 0xff00) >>> 8);
         }
 
-        playSound(sampleRate, soundData);
+        playSound((int) sampleRate, soundData);
     }
 
     protected void playSound(int sampleRate, byte[] soundData) {
