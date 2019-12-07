@@ -82,6 +82,9 @@ class FileManager(private val mainActivity: MainActivity) {
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe { file ->
+                    if (file.length() == 0L) {
+                        return@subscribe
+                    }
                     val intent = Intent(Intent.ACTION_SEND)
                     intent.type = "application/zip"
                     intent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + file.absolutePath))
