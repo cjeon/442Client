@@ -22,6 +22,7 @@ import android.widget.Toast
 import com.paramsen.noise.Noise
 import com.paramsen.noise.sample.FileManager
 import com.paramsen.noise.sample.R
+import com.paramsen.noise.sample.TonePlayer.ContinuousBuzzer
 import com.paramsen.noise.sample.source.AudioSource
 import io.reactivex.Flowable
 import io.reactivex.disposables.CompositeDisposable
