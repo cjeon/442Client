@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.StrictMode
 import android.support.annotation.AnyThread
+import android.util.Log
 import com.paramsen.noise.sample.view.MainActivity
 import com.paramsen.noise.sample.view.MainActivity.RecordType
 import io.reactivex.Single
@@ -36,6 +37,7 @@ class FileManager(private val mainActivity: MainActivity) {
     }
 
     fun writeDataToFile(recordType: RecordType, data: FloatArray) {
+        Log.d("writeDataToFile", "record type = ${recordType.filename}")
         val processor: BehaviorProcessor<FloatArray>
         if (processors.containsKey(recordType.filename)) {
             processor = processors[recordType.filename]!!

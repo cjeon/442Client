@@ -26,6 +26,7 @@ import com.paramsen.noise.sample.FileManager
 import com.paramsen.noise.sample.R
 import com.paramsen.noise.sample.TonePlayer.ContinuousBuzzer
 import com.paramsen.noise.sample.source.AudioSource
+import io.reactivex.Completable
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -181,22 +182,26 @@ class MainActivity : AppCompatActivity() {
 
 //        playFMCW(count)
 
+        val signalModeFinishedCompletable = Completable.timer(ConfigOptions.SIGNAL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS).cache()
+
         tonePlayer.setOnPlayListener {
+            Log.d("onPlayListener", "start")
             isSignalPlaying.set(true)
             isInSignalMode.set(true)
-            Single.timer(ConfigOptions.SIGNAL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
-                    .subscribe { _ -> isInSignalMode.set(false) }
+            signalModeFinishedCompletable.subscribe { isInSignalMode.set(false) }
         }
         tonePlayer.setOnStopListener {
             isSignalPlaying.set(false)
             if (ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value <= 0) {
-                showToast("sampling finished")
-                recordSignal(count - 1)
+                signalModeFinishedCompletable.subscribe {
+                    showToast("sampling finished")
+                    recordSignal(count - 1)
+                }?.let { disposable.add(it) }
                 return@setOnStopListener
             }
             isInTailMode.set(true)
-            Single.timer(ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
-                    .subscribe { _ ->
+            Completable.timer(ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
+                    .subscribe {
                         // recording finished.
                         isInTailMode.set(false)
                         showToast("sampling finished")
@@ -267,6 +272,7 @@ class MainActivity : AppCompatActivity() {
                 .subscribe({ fft ->
 //                    fftHeatMapView.onFFT(fft)
 //                    fftBandView.onFFT(fft)
+//                    Log.d("onFFT", "isInSignalMode: ${isInSignalMode.get()}")
                     if (isInSignalMode.get()) {
                         fileManager.writeDataToFile(RecordType.ALL, fft)
                     }
