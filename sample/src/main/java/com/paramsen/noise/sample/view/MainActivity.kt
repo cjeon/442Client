@@ -65,7 +65,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        fileManager.msgView = msg_view
 
         scheduleAbout()
 
@@ -190,7 +189,6 @@ class MainActivity : AppCompatActivity() {
                         fileManager.writeDataToFile(recordType.get(), fft)
                         if (currentSampleCount.get() == 0) {
                             showToast("sampling finished")
-                            fileManager.writeLineBreak(recordType.get())
                             recordType.set(RecordType.EMPTY)
                         }
                     }

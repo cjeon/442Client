@@ -1,31 +1,36 @@
 package com.paramsen.noise.sample
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Handler
 import android.os.StrictMode
 import android.support.annotation.AnyThread
 import android.support.annotation.MainThread
-import android.util.Log
-import android.widget.TextView
-import android.widget.Toast
+import com.paramsen.noise.sample.view.MainActivity
 import com.paramsen.noise.sample.view.MainActivity.RecordType
+import io.reactivex.Single
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.processors.BehaviorProcessor
 import io.reactivex.schedulers.Schedulers
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.*
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 
-class FileManager(private val context: Context) {
-    var msgView: TextView? = null
+class FileManager(private val mainActivity: MainActivity) {
     private val disposable = CompositeDisposable()
     private val processors = hashMapOf<String, BehaviorProcessor<FloatArray>>()
 
     init {
         val builder = StrictMode.VmPolicy.Builder()
         StrictMode.setVmPolicy(builder.build())
+    }
+
+    fun deleteAllFiles() {
+        RecordType.values().map { getTextFile(it) }.forEach { it.delete() }
     }
 
     fun writeDataToFile(recordType: RecordType, data: FloatArray) {
@@ -40,71 +45,83 @@ class FileManager(private val context: Context) {
         processor.onNext(data)
     }
 
-    fun writeLineBreak(recordType: RecordType) {
-        val processor: BehaviorProcessor<FloatArray>
-        if (processors.containsKey(recordType.filename)) {
-            processor = processors[recordType.filename]!!
-        } else {
-            processor = BehaviorProcessor.create()
-            processors[recordType.filename] = processor
-            subscribeProcessor(recordType, processor)
-        }
-        processor.onNext(FloatArray(0))
-
-    }
-
-    private var isFirstData = true
-
     private fun subscribeProcessor(recordType: RecordType,
                                    processor: BehaviorProcessor<FloatArray>) {
         processor
                 .observeOn(Schedulers.io())
                 .onBackpressureBuffer()
-                .doOnError { Log.e("FileManager", "subscribeProcessor", it)}
                 .subscribe {
                     val file = getTextFile(recordType)
-                    if (it.isEmpty()) {
-                        file.appendText("]\n")
-                        Handler(context.mainLooper).post {
-                            Toast.makeText(context, "text file prepared!", Toast.LENGTH_LONG).show()
-                            msgView?.text = "text file prepared!"
-                            isFirstData = true
-                        }
-
-                    } else {
-                        if (isFirstData) {
-                            file.appendText("[")
-                        } else {
-                            file.appendText(",")
-                        }
-                        val str = Arrays.toString(it)
-                        file.appendText(str.substring(1, str.length - 1))
-                        isFirstData = false
-                    }
+                    file.appendText(Arrays.toString(it) + "\n")
                 }
                 .let { disposable.add(it) }
     }
 
     @AnyThread
     private fun getTextFile(recordType: RecordType): File {
-        val rootDir = context.getExternalFilesDir(null)
+        val rootDir = mainActivity.getExternalFilesDir(null)
         val file = File(rootDir, "${recordType.filename}.txt")
         file.createNewFile() // file created only when file does not exist.
         return file
     }
 
-    @MainThread
+    @AnyThread
+    private fun getZipFile(recordType: RecordType): File {
+        val rootDir = mainActivity.getExternalFilesDir(null)
+        val file = File(rootDir, "${recordType.filename}.zip")
+        file.createNewFile() // file created only when file does not exist.
+        return file
+    }
+
+    @AnyThread
     fun shareFile(recordType: RecordType) {
-        val file = getTextFile(recordType)
-        val intent = Intent(Intent.ACTION_SEND)
-        intent.type = "text/*"
-        intent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + file.absolutePath))
-        context.startActivity(Intent.createChooser(intent, "share file with"))
+        Single.create<File> {
+            zipFile(recordType)
+            it.onSuccess(getZipFile(recordType))
+        }
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { file ->
+                    val intent = Intent(Intent.ACTION_SEND)
+                    intent.type = "application/zip"
+                    intent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + file.absolutePath))
+                    mainActivity.startActivity(Intent.createChooser(intent, "share file with"))
+                }
+                .let { disposable.add(it) }
     }
 
     fun close() {
         disposable.dispose()
-        RecordType.values().map { getTextFile(it) }.forEach { it.delete() }
+    }
+
+    private fun zipFile(recordType: RecordType) {
+        val buffer = ByteArray(1024)
+        val fileToWrite = getTextFile(recordType)
+        if (fileToWrite.length() == 0L) {
+            mainActivity.showToast("Zip 실패: ${recordType.filename}이 비어있습니다.")
+            return
+        }
+
+        val zipFile = getZipFile(recordType)
+        val fileOut = FileOutputStream(zipFile)
+        val zipOut = ZipOutputStream(fileOut)
+        zipOut.setLevel(9)
+
+        val zipEntry = ZipEntry(fileToWrite.name)
+        zipOut.putNextEntry(zipEntry)
+
+        val fileIn= FileInputStream(fileToWrite)
+
+        var read = fileIn.read(buffer)
+        do {
+            zipOut.write(buffer, 0, read)
+            read = fileIn.read(buffer)
+        }
+        while (read > 0)
+
+        fileIn.close()
+        zipOut.closeEntry()
+        zipOut.close()
     }
 }
 
