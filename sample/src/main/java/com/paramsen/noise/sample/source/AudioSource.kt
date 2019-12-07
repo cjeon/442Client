@@ -63,7 +63,7 @@ class AudioSource() {
                     if (!out.hasRemaining()) {
                         val cpy = FloatArray(out.array().size)
                         System.arraycopy(out.array(), 0, cpy, 0, out.array().size)
-                        Log.d("onnext", "Time passed: ${System.currentTimeMillis() - start}, data logged: ${++count}")
+//                        Log.d("onnext", "Time passed: ${System.currentTimeMillis() - start}, data logged: ${++count}")
                         sub.onNext(cpy)
                         out.clear()
                     }
