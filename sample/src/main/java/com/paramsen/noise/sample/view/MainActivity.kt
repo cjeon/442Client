@@ -2,51 +2,68 @@ package com.paramsen.noise.sample.view
 
 import android.Manifest.permission.RECORD_AUDIO
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.media.MediaPlayer
-import android.os.*
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.support.annotation.AnyThread
 import android.support.annotation.MainThread
 import android.support.v4.content.ContextCompat.checkSelfPermission
 import android.support.v7.app.AppCompatActivity
-import android.support.v7.view.menu.ActionMenuItemView
-import android.support.v7.widget.ActionMenuView
+import android.text.InputType
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.view.ViewGroup
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.view.animation.Animation
-import android.view.animation.AnimationUtils
+import android.widget.EditText
 import android.widget.Toast
 import com.paramsen.noise.Noise
 import com.paramsen.noise.sample.FileManager
 import com.paramsen.noise.sample.R
 import com.paramsen.noise.sample.TonePlayer.ContinuousBuzzer
 import com.paramsen.noise.sample.source.AudioSource
-import io.reactivex.Flowable
+import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.functions.Function
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.IOException
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : AppCompatActivity() {
     private val TAG = javaClass.simpleName!!
 
     private val disposable: CompositeDisposable = CompositeDisposable()
 
-    // set to positive number when taking sample,
-    // and decremented by 1 each time sample is added to fftSamples.
-    private val sampleCount = 30
-    private var currentSampleCount = AtomicInteger(0)
-    private val recordType = AtomicReference<RecordType>(RecordType.EMPTY)
+    private val isSignalPlaying = AtomicBoolean(false)
+    private val isInSignalMode = AtomicBoolean(false)
+    private val isInTailMode = AtomicBoolean(false)
 
-    private val fileManager = FileManager(this)
+    private lateinit var fileManager: FileManager
 
-    enum class RecordType(val filename: String) { NOISE("noise"), SIGNAL("signal"), EMPTY("empty") }
+    private lateinit var tonePlayer: ContinuousBuzzer
+
+    enum class ConfigOptions(var value: Int, val optionString: String) {
+        SAMPLE_COUNT(1, "한 번에 녹음하는 횟수"),
+        SIGNAL_LENGTH_IN_MS(5000, "Signal 길이(ms)"),
+        SIGNAL_MODE_LENGTH_IN_MS(5000, "signal 녹음 길이(ms)"),
+        TAIL_MODE_LENGTH_IN_MS(3000, "tail 녹음 길이(ms)"),
+        CLEAR_ALL_FILES(0, "텍스트 파일 전부 삭제");
+
+        fun loadValueFromSharedPref(sharedPref: SharedPreferences) {
+            this.value = sharedPref.getInt(this.optionString, this.value)
+        }
+    }
+
+    enum class RecordType(val filename: String) {
+        ALL("all"),
+        TAIL("tail"),
+        EMPTY("empty")
+    }
 
     @SuppressLint("WrongThread")
     @AnyThread
@@ -65,42 +82,81 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        fileManager = FileManager(this)
 
-        scheduleAbout()
+        // init ConfigOptions
+        val sharedPref = getSharedPreferences("default", Context.MODE_PRIVATE)
+        ConfigOptions.values().forEach { it.loadValueFromSharedPref(sharedPref) }
 
-        record_noise.setOnClickListener {
-            if (currentSampleCount.get() > 0) {
-                showToast("Sample already taking .. ${currentSampleCount.get()}")
-                return@setOnClickListener
-            }
-            if (recordType.get() != RecordType.EMPTY) {
-                showToast("Record type is not empty .. ${recordType.get()}")
-                return@setOnClickListener
-            }
-            recordType.set(RecordType.NOISE)
-            currentSampleCount.set(sampleCount)
-            showToast("Start sampling noise!")
-        }
+        tonePlayer = ContinuousBuzzer()
+        tonePlayer.toneFreqInHz = 10000.0
+        tonePlayer.pausePeriodInMs = ConfigOptions.SIGNAL_LENGTH_IN_MS.value.toDouble()
 
         record_signal.setOnClickListener {
-            if (currentSampleCount.get() > 0) {
-                showToast("Sample already taking .. ${currentSampleCount.get()}")
-                return@setOnClickListener
-            }
-            if (recordType.get() != RecordType.EMPTY) {
-                showToast("Record type is not empty .. ${recordType.get()}")
+            if (isInSignalMode.get() || isInTailMode.get()) {
+                showToast("Sample already taking ..")
                 return@setOnClickListener
             }
 
-            recordSignal(10)
+            recordSignal(ConfigOptions.SAMPLE_COUNT.value)
         }
 
-        share_noise.setOnClickListener {
-            fileManager.shareFile(RecordType.NOISE)
+        share_signal_all.setOnClickListener {
+            fileManager.shareFile(RecordType.ALL)
         }
 
-        share_signal.setOnClickListener {
-            fileManager.shareFile(RecordType.SIGNAL)
+        share_signal_tail.setOnClickListener {
+            fileManager.shareFile(RecordType.TAIL)
+        }
+
+        config.setOnClickListener {
+
+            val options: Array<CharSequence> = Array(ConfigOptions.values().size) { "" }
+            ConfigOptions.values().map { it.optionString }.forEachIndexed { index, string -> options[index] = string }
+
+            val mainDialog = AlertDialog.Builder(this)
+                    .setTitle("설정")
+                    .setItems(options, null)
+                    .setPositiveButton("끝!") { dialog, _ -> dialog.dismiss() }
+                    .create()
+
+            mainDialog.listView.setOnItemClickListener { _, _, position, _ ->
+                if (0 > position || position >= ConfigOptions.values().size) {
+                    throw RuntimeException()
+                }
+                val option = ConfigOptions.values().find { it.optionString == options[position] }
+                        ?: throw RuntimeException()
+
+                if (option == ConfigOptions.CLEAR_ALL_FILES) {
+                    fileManager.deleteAllFiles()
+                    showToast("파일 삭제 완료!")
+                    return@setOnItemClickListener
+                }
+
+                val editText = EditText(this)
+                editText.inputType = InputType.TYPE_CLASS_NUMBER
+                editText.setText(option.value.toString())
+
+                AlertDialog.Builder(this)
+                        .setTitle(option.optionString)
+                        .setView(editText)
+                        .setNegativeButton("취소") { d, _ -> d.cancel() }
+                        .setPositiveButton("설정") { d, _ ->
+                            if (editText.text.isBlank()) {
+                                showToast("Input is empty, nothing changed.")
+                            } else {
+                                option.value = editText.text.toString().toInt()
+                                sharedPref.edit().putInt(option.optionString, option.value).apply()
+                                if (option == ConfigOptions.SIGNAL_LENGTH_IN_MS) {
+                                    tonePlayer.pausePeriodInMs = ConfigOptions.SIGNAL_LENGTH_IN_MS.value.toDouble()
+                                }
+                            }
+                            d.dismiss()
+                        }
+                        .show()
+            }
+
+            mainDialog.show()
         }
     }
 
@@ -113,15 +169,27 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        recordType.set(RecordType.SIGNAL)
+//        playFMCW(count)
 
-        playFMCW(count)
-
-        // wait for sound to play
-        AsyncTask.execute {
-            Thread.sleep(1000)
-            currentSampleCount.set(sampleCount)
+        tonePlayer.setOnPlayListener {
+            isSignalPlaying.set(true)
+            isInSignalMode.set(true)
+            Single.timer(ConfigOptions.SIGNAL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
+                    .subscribe { _ -> isInSignalMode.set(false) }
         }
+        tonePlayer.setOnStopListener {
+            isSignalPlaying.set(false)
+            isInTailMode.set(true)
+            Single.timer(ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
+                    .subscribe { _ ->
+                        // recording finished.
+                        isInTailMode.set(false)
+                        showToast("sampling finished")
+                        recordSignal(count - 1)
+                    }
+        }
+        tonePlayer.play()
+
         showToast("Start sampling signal! Count: $count")
     }
 
@@ -184,13 +252,12 @@ class MainActivity : AppCompatActivity() {
                 .subscribe({ fft ->
 //                    fftHeatMapView.onFFT(fft)
 //                    fftBandView.onFFT(fft)
-                    if (currentSampleCount.get() > 0) {
-                        currentSampleCount.set(currentSampleCount.get() - 1)
-                        fileManager.writeDataToFile(recordType.get(), fft)
-                        if (currentSampleCount.get() == 0) {
-                            showToast("sampling finished")
-                            recordType.set(RecordType.EMPTY)
-                        }
+                    if (isInSignalMode.get()) {
+                        fileManager.writeDataToFile(RecordType.ALL, fft)
+                    }
+                    if (isInTailMode.get()) {
+                        fileManager.writeDataToFile(RecordType.ALL, fft)
+                        fileManager.writeDataToFile(RecordType.TAIL, fft)
                     }
                 }, { e -> Log.e(TAG, e.message) }))
 
@@ -202,6 +269,7 @@ class MainActivity : AppCompatActivity() {
     private fun stop() {
         disposable.clear()
         fileManager.close()
+        fileManager = FileManager(this)
         player.stop()
         player.release()
     }
