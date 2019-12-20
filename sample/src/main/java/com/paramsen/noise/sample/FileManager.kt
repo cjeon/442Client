@@ -110,9 +110,11 @@ class FileManager(private val mainActivity: MainActivity) {
         val zipFile = getZipFile()
         val fileOut = FileOutputStream(zipFile)
         val zipOut = ZipOutputStream(fileOut)
-        zipOut.setLevel(9)
+        zipOut.setLevel(1)
 
+        var count = 0
         for (file in files) {
+            mainActivity.showToast("${files.size} 중 ${++count}번째 압축 중")
             if (file.length() == 0L) {
                 mainActivity.showToast("Zip 실패: ${file.name}이 비어있습니다.")
                 continue

@@ -6,6 +6,9 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
@@ -28,12 +31,15 @@ import com.paramsen.noise.sample.TonePlayer.ContinuousBuzzer
 import com.paramsen.noise.sample.source.AudioSource
 import io.reactivex.Completable
 import io.reactivex.Single
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.IOException
+import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.sin
 
 class MainActivity : AppCompatActivity() {
     private val TAG = javaClass.simpleName!!
@@ -180,8 +186,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-//        playFMCW(count)
+        playFMCW(count)
 
+        showToast("Start sampling signal! Count: $count")
+    }
+
+    fun playTone(count: Int) {
         val signalModeFinishedCompletable = Completable.timer(ConfigOptions.SIGNAL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS).cache()
 
         tonePlayer.setOnPlayListener {
@@ -209,22 +219,44 @@ class MainActivity : AppCompatActivity() {
                     }
         }
         tonePlayer.play()
-
-        showToast("Start sampling signal! Count: $count")
     }
 
     private var player = MediaPlayer()
 
     @MainThread
     fun playFMCW(count: Int) {
+        val signalModeFinishedCompletable = Completable.timer(ConfigOptions.SIGNAL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS).cache()
+
+        player.seekTo(5000 - ConfigOptions.SIGNAL_LENGTH_IN_MS.value)
+        player.start()
+//        Completable.timer(ConfigOptions.SIGNAL_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
+//                .observeOn(AndroidSchedulers.mainThread())
+//                .subscribe { player.stop() }
+//                .let { disposable.add(it) }
+
+        isSignalPlaying.set(true)
+        isInSignalMode.set(true)
+        signalModeFinishedCompletable.subscribe { isInSignalMode.set(false) }.let { disposable.add(it) }
+
         player.setOnCompletionListener {
-            recordSignal(count - 1)
+            isSignalPlaying.set(false)
+            if (ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value <= 0) {
+                signalModeFinishedCompletable.subscribe {
+                    showToast("sampling finished")
+                    recordSignal(count - 1)
+                }?.let { disposable.add(it) }
+                return@setOnCompletionListener
+            }
+            isInTailMode.set(true)
+            Completable.timer(ConfigOptions.TAIL_MODE_LENGTH_IN_MS.value.toLong(), TimeUnit.MILLISECONDS)
+                    .subscribe {
+                        // recording finished.
+                        isInTailMode.set(false)
+                        showToast("sampling finished")
+                        recordSignal(count - 1)
+                    }
         }
-        try {
-            player.start()
-        } catch (e: IOException) {
-            Log.e(e.localizedMessage, e.toString())
-        }
+    }
 
     }
 
