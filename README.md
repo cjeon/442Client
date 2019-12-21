@@ -1,4 +1,5 @@
-This repository contains the android code for research project "Detective Echo" conducted during 2019 Fall, in CS442. The code is based on [paramsen's open-source project](https://github.com/paramsen/noise). 
+This repository contains the android code for research project "Detective Echo" conducted during 2019 Fall, in CS442. The code is based on [paramsen's open-source project](https://github.com/paramsen/noise). The sample data is also available. This data is the same data we used for final presentation and the final report.
+[Google Drive link](https://drive.google.com/file/d/188HjHgrzjBbsEiA2rjSyb90xMyZcvRS-/view?usp=sharing).
 
 # Build process
 
